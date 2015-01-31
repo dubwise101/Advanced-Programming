@@ -23,13 +23,11 @@ module assignment04
 */
 
 import iTasks
-import Math.Random
-:: Idea = { title :: String, description :: Maybe Note }
+
+:: Idea	:== String
 :: Name	:== String
 
-:: NamedIdea = { id :: Int, name :: Name, idea :: Idea}
-
-derive class iTask Idea
+:: NamedIdea = { name :: Name, idea :: Idea}
 derive class iTask NamedIdea	// generic magic
 
 doIdentified :: (Name -> Task x) -> Task x | iTask x
@@ -37,9 +35,10 @@ doIdentified task
 	=   enterInformation "Enter your name" []
 	>>= task
 
-editIdea :: Name -> Task [NamedIdea]
+editIdea :: Name -> Task NamedIdea
 editIdea name
-	= enterInformation (name +++ " add your ideas") [EnterWith (map (\idea -> {NamedIdea | id=hd (genRandInt 42),name=name,idea=idea}))]
+	= enterInformation (name +++ " add your idea") []
+	>>= \idea . return {name = name, idea = idea}
 
 Start :: *World -> *World
 Start world

@@ -11,65 +11,45 @@ trans :: (DSpec s i o) -> Spec s i o
 trans d = \o s . toSpec (d o s)
 where
 	toSpec :: (DTrans output state) -> [Trans output state]
-    toSpec (DPt o s) = [Pt [o] s]
-    toSpec (DFt f) = [Ft (map f)]
+    toSpec (DPt output state) 	= [Pt [output] state]
+    toSpec (DFt f) 				= [Ft (map f)]
 
 // 3 A Vending Machine Model
-:: State = S Int
-
 :: In = Choice Product | InsertCoin | Help
 :: Out = Out Product | ReturnCoin | Info String
 :: Product = Coffee | Tea | CandyBar
 
-spec :: State In -> DTrans Out State
-spec (S 1) (Choice Tea) = DPt (Out Tea) (S 0)
-spec (S 2) (Choice Coffee) = DPt (Out Coffee) (S 0)
-spec (S 3) (Choice CandyBar)= DPt (Out CandyBar) (S 0)
-spec (S 0) InsertCoin = DPt (Info "") (S 1)
-spec (S 1) InsertCoin = DPt (Info "") (S 2)
-spec (S 2) InsertCoin = DPt (Info "") (S 3)
-spec (S 3) InsertCoin = DPt ReturnCoin (S 3)
-spec s Help = DPt (Info "") s
-spec s b = DPt (Info "") s
+:: State = S Int
+
+spec :: State In 				-> DTrans Out State
+spec (S 1) (Choice Tea) 		= DPt (Out Tea) (S 0)
+spec (S 2) (Choice Coffee) 		= DPt (Out Coffee) (S 0)
+spec (S 3) (Choice CandyBar)	= DPt (Out CandyBar) (S 0)
+spec (S 0) InsertCoin 			= DPt (Info "") (S 1)
+spec (S 1) InsertCoin 			= DPt (Info "") (S 2)
+spec (S 2) InsertCoin 			= DPt (Info "") (S 3)
+spec (S 3) InsertCoin 			= DPt ReturnCoin (S 3)
+spec s Help 					= DPt (Info "") s
+spec s b 						= DPt (Info "") s
 
 value p = case p of
 	Tea = 1
 	Coffee = 2
 	CandyBar = 3
 	
-// 4 System Under Test
-exSut :: State -> (In -> ([Out],State))
-exSut s = \i . subSut i
-	where
-	subSut :: In -> ([Out],State)
-	subSut i = sut s i
+sut :: State In 			-> ([Out],State)
+sut (S 1) (Choice Tea) 		= ([(Out Tea)], (S 0))
+sut (S 2) (Choice Coffee) 	= ([(Out Coffee)], (S 0))
+sut (S 3) (Choice CandyBar)	= ([(Out CandyBar)], (S 0))
+sut (S 0) InsertCoin 		= ([(Info "")], (S 1))
+sut (S 1) InsertCoin 		= ([(Info "")], (S 2))
+sut (S 2) InsertCoin 		= ([(Info "")], (S 3))
+sut (S 3) InsertCoin 		= ([ReturnCoin],(S 3))
+sut s Help 					= ([(Info "")], s)
+sut s b 					= ([(Info "")], s)
 
-sut :: State In -> ([Out],State)
-sut (S 3) InsertCoin = ([(ReturnCoin)], (S 3))
-sut (S n) InsertCoin = ([(Info "")], (S (n+1)))
-sut (S n) (Choice Tea) 
-| n == 1 = ([(Out Tea)], (S (n-1)))
-| otherwise = ([(Info "")],(S n))
-sut (S n) (Choice Coffee) 
-| n == 2 = ([(Out Coffee)], (S (n-2)))
-| otherwise = ([(Info "")],(S n))
-sut (S n) (Choice CandyBar)
-| n == 3 = ([(Out CandyBar)], (S (n-3)))
-| otherwise = ([(Info "")],(S n))
-sut state Help = ([(Info "")], state)
+t0 = (S 0)
+s0 = (S 0)
 
-derive gEq State
-derive gLess State
-derive genShow State
-derive gEq Out
-derive genShow Out
-derive gEq Product
-derive genShow Product
-derive ggen Product
-derive bimap []
-derive ggen In
-derive genShow In
-
-t0 = S 0
-
-Start w = testConfSM [Shrink True] (trans spec) (S 0) exSut t0 (\_.t0) w
+Start :: w -> a | gEq{|*|}, genShow{|*|} w
+Start w = testConfSM [Shrink True] (trans spec) s0 sut t0 (\_.t0) w

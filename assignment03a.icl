@@ -11,15 +11,26 @@ module assignment03a
 
 import StdEnv, StdMaybe
 
-// Maarten Derks s4191552
-
 /************* showing *******************/
 
-class show_0 a where show_0 :: a [String] -> [String]
+class show_0 t where show_0 :: t [String] -> [String]
+class show_1 t where show_1 :: (a [String] -> [String]) (t a) [String] -> [String]
+class show_2 t where show_2 :: (a [String] -> [String]) (b [String] -> [String]) (t a b) [String] -> [String]
 
-instance show_0 Int  where show_0 i    c = [toString i:c]
-instance show_0 Bool where show_0 b    c = [toString b:c]
-instance show_0 UNIT where show_0 unit c = c
+instance show_0 Int  where show_0 i    c 			= [toString i:c]
+instance show_0 Bool where show_0 b    c 			= [toString b:c]
+instance show_0 UNIT where show_0 unit c 			= c
+instance show_2 PAIR where show_2 f g (PAIR a b) c 	= f a (g b c)
+instance show_2 EITHER where
+	show_2 f g (LEFT l) c 							= f l c
+	show_2 f g (RIGHT r) c 							= g r c
+instance show_1 CONS where show_1 f (CONS n a) c 	= [n:f a c]
+
+IntTag	:== "Int"
+BoolTag	:== "Bool"
+UNITTag	:== "UNIT"
+PAIRTag	:== "PAIR"
+CONSTag :== "CONS"
 
 show :: a -> [String] | show_0 a
 show a = show_0 a []
@@ -28,7 +39,9 @@ show a = show_0 a []
 
 :: Result a :== Maybe (a,[String])
 
-class parse0 a :: [String] -> Result a
+class parse0 t :: [String] -> Result t
+class parse1 t :: ([String] -> Result a) [String] -> Result (t a)
+class parse2 t :: ([String] -> Result a) ([String] -> Result b) [String] -> Result (t a b) 
 
 instance parse0 Int
 where
@@ -41,6 +54,29 @@ where
 instance parse0 UNIT
 where
 	parse0 r = Just (UNIT, r)
+	//parse0 r = Nothing
+instance parse2 PAIR
+where
+	parse2 f g r = case f r of
+					Just (a,l) = case g l of
+									Just (b,r) = Just (PAIR a b,r)
+									_ = Nothing
+					Nothing = Nothing
+	//parse2 f g r = Nothing
+instance parse2 EITHER
+where
+	parse2 f g c = case f c of
+					Just (a,l) = Just (LEFT a,l)
+					_ = case g c of
+							Just (b,r) = Just (RIGHT b,r)
+							_ = Nothing
+							
+instance parse1 CONS
+where
+	parse1 f [n:r] = case f r of
+								Just (a,r) 	= Just (CONS n a,r)
+								_ 			= Nothing
+	parse1 f r = Nothing
 
 /**************** Example Types and conversions *************************/
 
@@ -147,74 +183,48 @@ instance map2 EITHER		where map2 f g (LEFT  x)  = LEFT  (f x)
 
 /**************** please add all new code below this line *************************/
 
-instance eq0 Color		where eq0 c1 c2 = eq2 (eq2 (eq1 eq0) (eq1 eq0)) (eq1 eq0) (fromColor c1) (fromColor c2)
-instance ==  Color		where (==) c1 c2 = eq0 c1 c2	// just to use the well-known notation...
+instance eq0 Color		where eq0  c1 c2 		= False		// TO BE IMPROVED
+instance ==  Color		where (==) c1 c2 		= eq0 c1 c2	// just to use the well-known notation...
+instance show_0 T 		where show_0 t c 		= (show_1 show_0) (fromT t) c
+instance show_0 Color 	where show_0 color c 	= show_2 (show_2 (show_1 show_0) (show_1 show_0)) (show_1 show_0) (fromColor color) c
+instance show_1 Tree	where show_1 f tree c 	= show_2 (show_1 show_0) (show_1 (show_2 f (show_2 (show_1 f) (show_1 f)))) (fromTree tree) c
+instance show_1 []		where show_1 f list c	= show_2 (show_1 show_0) (show_1 (show_2 f (show_1 f))) (fromList list) c
+instance show_2 (,)		where show_2 f g tup c	= show_1 (show_2 f g) (fromTup tup) c
+instance parse0 T 		where parse0 c 			= case (parse1 parse0) c of
+													Just (t,r) = Just (toT t,r)
+													_	= Nothing
+instance parse0 Color	where parse0 c       	= case (parse2 (parse2 (parse1 parse0) (parse1 parse0)) (parse1 parse0)) c of
+													Just (a,r) = Just (toColor a,r)
+													_ = Nothing
+instance parse1 Tree	where parse1 f c		= case (parse2 (parse1n "Tip" parse0) (parse1n "Bin" (parse2 f (parse2 (parse1 f) (parse1 f))))) c of
+													Just (t,r) = Just (toTree t,r)
+													_ = Nothing												
+instance parse1 []		where parse1 f c		= case (parse2 (parse1n "Nil" parse0) (parse1n "Cons" (parse2 f (parse1 f)))) c of
+													Just (l,r) = Just (toList l,r)
+													_ = Nothing
+instance parse2 (,)		where parse2 f g c		= case (parse1 (parse2 f g)) c of
+													Just (t,r) = Just (toTup t,r)
+													_ = Nothing
 
-class show_1 t where show_1 :: (a [String] -> [String]) (t a) [String] -> [String]
-class show_2 t where show_2 :: (a [String] -> [String]) (b [String] -> [String]) (t a b) [String] -> [String]
-
-instance show_2 PAIR where show_2 f g (PAIR a b) c = f a (g b c)
-instance show_2 EITHER where 
-	show_2 f g (LEFT a) c = ["LEFT":f a c]
-	show_2 f g (RIGHT b) c = ["RIGHT":g b c]
-instance show_1 CONS where show_1 f (CONS n a) c = [n:f a c]
-
-instance show_0 T where show_0 t c = show_1 show_0 (fromT t) c
-instance show_0 Color where show_0 color c = show_2 (show_2 (show_1 show_0) (show_1 show_0)) (show_1 show_0) (fromColor color) c
-instance show_1 Tree where show_1 f t c	= show_2 (show_1 show_0) (show_1 (show_2 f (show_2 (show_1 f) (show_1 f))))(fromTree t) c
-instance show_1 [] where show_1 f l c = show_2 (show_1 show_0) (show_1 (show_2 f (show_1 f)))(fromList l) c
-instance show_2 (,) where show_2 f g t c = show_1 (show_2 f g) (fromTup t) c
-
-class parse1 t :: ([String] -> Result a) [String] -> Result (t a)        
-class parse2 t :: ([String] -> Result a) ([String] -> Result b) [String] -> Result (t a b)
-
-instance parse2 PAIR where 
-	parse2 f g l = case f l of
-						Just (a,x) = case g x of
-										Just (b,y) = Just (PAIR a b,y)
-										_ = Nothing	
-						_ = Nothing
-instance parse2 EITHER where 
-	parse2 f g ["LEFT":x] = case f	x of Just (l,x) = Just (LEFT l,x); _ = Nothing
-	parse2 f g ["RIGHT":x] = case g x of Just (r,x) = Just (RIGHT r,x); _ = Nothing
-instance parse1 CONS where
-	parse1 f [name:x] = case f x of Just (a,b) = Just (CONS name a,b)
-	parse1 f l = Nothing
-	
-instance parse0 T where 
-	parse0 l = case parse1 parse0 l of
-					Just (a,r) = Just (toT a,r)
-					_ = Nothing	 
-instance parse0 Color 
-where 
-	parse0 l = case (parse2 (parse2 (parse1 parse0) (parse1 parse0)) (parse1 parse0) l) of
-					Just (a,r) = Just (toColor a,r)
-					_ = Nothing	 
-instance parse1 Tree where parse1 f l = case parse2 (parse1 parse0) (parse1 (parse2 f (parse2 (parse1 f) (parse1 f)))) l of 
-											Just (a,r) = Just (toTree a,r)
-											_ = Nothing
-instance parse1 [] where parse1 f l = case parse2 (parse1 parse0) (parse1 (parse2 f (parse1 f))) l of 
-											Just (a,r) = Just (toList a,r)
-											_ = Nothing
-instance parse2 (,) where parse2 f g l = case parse1 (parse2 f g) l of 
-											Just (a,r) = Just (toTup a,r)
-											_ = Nothing
-
-instance map1 [] where map1 f l = (toList o (map2 (map1 map0) (map1 (map2 f (map1 f)))) o fromList) l
-instance map1 Tree where map1 f l = (toTree o (map2 (map1 map0) (map1 (map2 f (map2 (map1 f) (map1 f))))) o fromTree ) l
-instance map2 (,) where map2 f g l = (toTup o (map1 (map2 f g)) o fromTup) l
+parse1n :: String ([String] -> Result a) [String] -> Result (CONS a)
+parse1n s pa [name:x]
+| s == name = case pa x of
+				Just (a, y) = Just (CONS name a, y)
+							= Nothing
+parse1n s pa l = Nothing
 
 fac :: Int -> Int
 fac 0 = 1
 fac n = n * fac (n-1)
 
-tupleFac :: Int -> (Int,Int)
-tupleFac n = (n,fac n)
+instance map1 []	where map1 f l = (toList o (map2 (map1 map0) (map1 (map2 f (map1 f)))) o fromList) l
+instance map1 Tree	where map1 f t = (toTree o (map2 (map1 map0) (map1 (map2 f (map2 (map1 f) (map1 f))))) o fromTree) t
+instance map2 (,)	where map2 f g t = (toTup o (map1 (map2 f g)) o fromTup) t
 
 //Start = map1 fac [1 .. 10]
-//Start = map1 fac aTree
-//Start = map2 (map1 fac) (map1 fac) ([1 .. 10],aTree)
-//Start = map1 tupleFac [1 .. 10]
+//Start = map1 fac (Bin 2 Tip (Bin 4 Tip Tip))
+//Start = map2 (map1 fac) (map1 fac) ([1 .. 10],Bin 2 Tip (Bin 4 Tip Tip))
+//Start = map1 (\i.(i,fac i)) [1 .. 10]
 
 // some initial tests, please extend
 Start

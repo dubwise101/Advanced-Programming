@@ -11,13 +11,21 @@ module assignment03b
 
 import StdEnv, StdGeneric, StdMaybe, GenEq
 
-// Maarten Derks s4191552
-
 //------------------ show --------------
 generic show_ a :: a [String] -> [String]
 
-show_{|Int|}  i c = [toString i:c]
-show_{|Bool|} b c = [toString b:c]
+show_{|Int|}  i c 							= [toString i:c]
+show_{|Bool|} b c 							= [toString b:c]
+show_{|UNIT|} UNIT c 						= c
+show_{|PAIR|} f g (PAIR a b) c 				= f a (g b c)
+show_{|EITHER|} f g (LEFT l) c				= f l c
+show_{|EITHER|} f g (RIGHT r) c				= g r c
+show_{|CONS of {gcd_name, gcd_arity}|} sa (CONS a) c
+| gcd_arity >0 	= ["(",gcd_name:sa a [")":c]]
+| otherwise 	= [gcd_name:sa a c]
+show_{|OBJECT|} f (OBJECT a) c				= f a c
+
+derive show_ (,),[],Tree,T
 
 show a = show_{|*|} a []
 
@@ -27,9 +35,40 @@ show a = show_{|*|} a []
 
 generic parse a :: [String] -> Result a
 
+parse{|Int|} [string:r]
+| size string>0 && (isDigit string.[0] || string.[0] =='-') = Just (toInt string, r)
+parse{|Int|} _ = Nothing
+
 parse{|Bool|} ["True" :r] = Just (True ,r)
 parse{|Bool|} ["False":r] = Just (False,r)
 parse{|Bool|} _ = Nothing
+
+parse{|UNIT|} r = Just (UNIT,r)
+parse{|PAIR|} f g p = case f p of
+								Just (a,p) = case g p of
+												Just (b,r) = Just (PAIR a b,r)
+												_ = Nothing
+								Nothing = Nothing
+parse{|EITHER|} f g e = case f e of
+							Nothing = case g e of
+										Just (b,r) = Just (RIGHT b,r)
+										Nothing = Nothing
+							Just (a,r) = Just (LEFT a,r) 
+parse{|CONS of {gcd_name, gcd_arity}|} pa [s:r]
+| gcd_arity > 0 && s == "(" && not (isEmpty r) && hd r == gcd_name = case pa (tl r) of
+																		Just (a, [")": r]) 	= Just (CONS a, r)
+																							= Nothing
+| s == gcd_name = case pa r of
+				Just (a, r) = Just (CONS a, r)
+				= Nothing
+= Nothing
+							
+parse{|OBJECT|} f r = case f r of
+						Just (a,r) = Just (OBJECT a,r)
+						_ = Nothing 
+						
+derive parse (,),[],Tree,T
+derive gEq Tree
 
 //------------------ some data types --------------
 
@@ -51,40 +90,8 @@ test x
 		_			= False
 
 /**************** End Prelude, add all new code below this line *************************/
-show_ {|UNIT|} _ c = c
-show_ {|PAIR|} f g (PAIR x y) c = f x (g y c)
-show_ {|EITHER|} f g (LEFT x) c = ["LEFT":f x c]
-show_ {|EITHER|} f g (RIGHT x) c = ["RIGHT":g x c]
-show_ {|CONS of {gcd_name}|} f (CONS x) c = [gcd_name:f x c]
-show_ {|OBJECT|} f (OBJECT x) c = f x c
-
-derive show_ T, Color, Tree, [], (,)
-
-parse{|UNIT|} r = Just (UNIT, r) 
-parse{|PAIR|} f g r = case f r of 
-							Just (a,x) = case g x of
-											Just (b,y) 	= Just (PAIR a b,y)
-											_ 			= Nothing
-							_ = Nothing	
-parse{|EITHER|} f g ["LEFT":r] = case f r of Just (l,x) = Just (LEFT l,x); _ = Nothing	
-parse{|EITHER|} f g ["RIGHT":r] = case g r of Just (r,x) = Just (RIGHT r,x); _ = Nothing
-parse{|CONS of {gcd_name}|} f [n:r] 
-| gcd_name == n = case f r of 
-					Just (a,b) = Just (CONS a,b)
-					_ = Nothing
-| otherwise = Nothing
-parse{|OBJECT|} f r = case f r of Just (l,x) = Just (OBJECT l,x); _ = Nothing
-
-parse{|Int|} [i:r] = Just (toInt i,r)
-parse{|Int|} _ = Nothing
-
-derive parse T, Color, Tree, [], (,)
-
-derive gEq T, Color, Tree
 
 //------------------ tests --------------
 
-Start = [ and [test b \\ b <- [False, True]]
-		, and [ test i \\ i <- [0 .. 25]]
-		, test [(a,b) \\ a <- [1 .. 2], b <- [5 .. 7]]
-		]
+//Start = and [test b \\ b <- [False, True]]
+Start = test ([1 .. 10],Bin 2 Tip (Bin 4 Tip Tip))

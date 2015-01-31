@@ -2,8 +2,6 @@ module assignment09b
 
 import gast
 
-// Maarten Derks s4191552
-
 :: Matcher a :== a -> Results
 :: Results :== (Bool,[String])
 

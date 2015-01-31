@@ -30,26 +30,11 @@ fromList []		= LEFT (CONS "Nil" UNIT)
 fromList [a:as]	= RIGHT (CONS "Cons" (PAIR a as))
 
 toList :: (ListG a) -> [a]
-toList (LEFT (CONS "Nil" UNIT)) 			= []
-toList (RIGHT (CONS "Cons" (PAIR a as))) 	= [a:as]
+toList (LEFT (CONS "Nil" UNIT)) = []
+toList (RIGHT (CONS "Cons" (PAIR a as))) = [a:as]
 
-fromTree :: (Tree a) -> (TreeG a)
-fromTree Tip 			= LEFT (CONS "Tip" UNIT)
-fromTree (Bin t1 a t2) 	= RIGHT (CONS "Bin" (PAIR a (PAIR t1 t2)))
-
-toTree :: (TreeG a) -> (Tree a)
-toTree (LEFT (CONS "Tip" UNIT)) 					= Tip
-toTree (RIGHT (CONS "Bin" (PAIR a (PAIR t1 t2)))) 	= Bin t1 a t2
-
-fromTuple :: (a,b) -> (TupG a b)
-fromTuple (a,b) = CONS "" (PAIR a b)
-
-toTuple :: (TupG a b) -> (a,b)
-toTuple (CONS "" (PAIR a b)) = (a,b)
 
 /**************** End Prelude *************************/
-
-// Maarten Derks s4191552
 
 /**************** Part 1 *******************************/
 
@@ -61,192 +46,139 @@ where
 	Ccontains :: a (t a) -> Bool     | <, Eq    a
 	Cshow     ::   (t a) -> [String] | toString a
 	Cnew	  :: t a
-
-instance Container []
+	
+instance Container [] 
 where
-	Cinsert   :: a ([] a) -> [] a      | <        a
-	Cinsert a [] 	= [a]
-	Cinsert a [x:xs]
-	| a < x			= [a:x:xs]
-	| otherwise 	= [x : Cinsert a xs]
-	Ccontains :: a ([] a) -> Bool     | <, Eq    a
-	Ccontains a [] 	= False
-	Ccontains a [x:xs]
-	| a == x		= True
-	| otherwise		= Ccontains a xs
-	Cshow     ::   ([] a) -> [String] | toString a
-	Cshow [] 		= []
-	Cshow [x:xs] 	= [toString x : Cshow xs]
-	Cnew	  :: [] a
-	Cnew 			= []
+	Cinsert 	a c 	= [a:c]
+	Ccontains 	a c		= isMember a c
+	Cshow 		  c 	= ["{":showElems c ["}"]]
+	Cnew 				= []
+
+showElems [] 	 c = c
+showElems [x]	 c = [toString x:c]
+showElems [x:xs] c = [toString x,",":showElems xs c]
 
 instance Container Tree
 where
-	Cinsert   :: a (Tree a) -> Tree a      | <        a
-	Cinsert a Tip 	= Bin Tip a Tip
-	Cinsert a (Bin t1 b t2)
-	| a < b			= Bin (Cinsert b t1) a t2
-	| otherwise 	= Bin t1 b (Cinsert a t2)
-	Ccontains :: a (Tree a) -> Bool     | <, Eq    a
-	Ccontains a Tip = False
-	Ccontains a (Bin t1 b t2)
-	| a == b		= True
-	| otherwise		= Ccontains a t1 || Ccontains a t2
-	Cshow     ::   (Tree a) -> [String] | toString a
-	Cshow Tip 			= ["Tip"]
-	Cshow (Bin t1 a t2)	= ["Bin "] ++ Cshow t1 ++ [toString a] ++ Cshow t2
-	Cnew	  :: Tree a
-	Cnew 			= Tip
+	Cinsert a Tip 			= Bin Tip a Tip
+	Cinsert a (Bin l b r)
+	| a < b					= Bin (Cinsert a l) b r
+	| otherwise 			= Bin l b (Cinsert a r)
+	Ccontains a Tip 		= False
+	Ccontains a (Bin l b r)
+	| a < b 				= Ccontains a l
+	| a > b 				= Ccontains a r
+	| otherwise				= True
+	Cshow t 				= ["{":showElems (TreetoList t []) ["}"]]
+	Cnew 					= Tip
 
+TreetoList Tip c = c
+TreetoList (Bin l a r) c = TreetoList l [a: TreetoList r c]
+	
 // Possible test:
-// Start = (Ccontains 3 c,Cshow c) where c = ..
+//Start = (Ccontains 3 c,Cshow c) where c = ...
 
 /**************** Part 2 *******************************/
-/*
-:: IntList = Empty | ConsInt Int IntList
-:: List a = Nil | Cons a (List a)
-:: Tree a b = Leaf a | Node (Tree a b) b (Tree a b)
-:: T1 a b = C11 (a b) | C12 b
-:: T2 a b c = C2 (a (T1 b c))
-:: T3 a b c = C3 (a b c)
-:: T4 a b c = C4 (a (b c))
 
+/*
 IntList: *
 List: * -> *
 List IntList: *
 Tree: * -> * -> *
 T1: (* -> *) -> * -> *
-T2: (* -> *) -> * -> * -> *
-T3: (* -> *) -> * -> * -> *
+T2: (* -> *) -> (* -> *) -> * -> *
+T3: (* -> * -> *) -> * -> * -> *
 T4: (* -> *) -> (* -> *) -> * -> *
 */
 
 /**************** Part 3 *******************************/
+
 //	Example types
 show :: a -> [String] | show_ a
 show a = show_ a []
 
-class show_ a
-where
-	show_ :: a [String] -> [String]
+class show_ a where show_ :: a [String] -> [String]
 
-class show0 t :: t [String] -> [String]
-class show1 t :: (a [String] -> [String]) (t a) [String] -> [String]        
-class show2 t :: (a [String] -> [String]) (b [String] -> [String]) (t a b) [String] -> [String]
+instance show_ Int  where show_ i c = ["Int"  : toString i : c]
+instance show_ Bool where show_ b c = ["Bool" : toString b : c]
 
-instance show0 Int  where show0 i c = ["Int"  : toString i : c]
-instance show0 Bool where show0 b c = ["Bool" : toString b : c]
+instance show_ UNIT where show_ _ c = ["UNIT" : c]
+instance show_ (PAIR a b) | show_ a & show_ b where show_ (PAIR a b) c = ["PAIR":show_ a (show_ b c)]
+instance show_ (EITHER a b) | show_ a & show_ b where
+	show_ (LEFT a) c = ["LEFT":show_ a c]
+	show_ (RIGHT b) c = ["RIGHT":show_ b c]
+instance show_ (CONS a) | show_ a where show_ (CONS name a) c = ["CONS",name:show_ a c]
 
-instance show0 UNIT where show0 _ c = ["UNIT" : c]
+instance show_ [a] | show_ a where show_ l c = show_ (fromList l) c
 
-instance show2 PAIR
-where
-	show2 f g (PAIR a b) c = ["PAIR" : "(" : f a [")" : "(" : g b [")":c]]]
+fromTree :: (Tree a) 	-> TreeG a
+fromTree Tip 			= LEFT (CONS "Tip" UNIT)
+fromTree (Bin l a r)	= RIGHT (CONS "Bin" (PAIR a (PAIR l r)))
 
-instance show2 EITHER
-where
-	show2 f g (LEFT a)  c = ["LEFT" : "(" : f a [")":c]]
-	show2 f g (RIGHT b) c = ["RIGHT" : "(" : g b [")":c]]
+instance show_ (Tree a) | show_ a where show_ t c = show_ (fromTree t) c
 
-instance show1 CONS
-where
-	show1 f (CONS n x) c = ["CONS" : n : "(" : f x [")":c]]
-	
-instance show1 []
-where
-	show1 f l c = show2 (show1 show0) (show1 (show2 f (show1 f)))(fromList l) c
-	
-instance show1 Tree
-where
-	show1 f t c	= show2 (show1 show0) (show1 (show2 f (show2 (show1 f) (show1 f))))(fromTree t) c
+fromTup :: (a,b)	-> TupG a b
+fromTup (a,b)		= CONS "Tup" (PAIR a b)
 
-instance show2 (a,b) | show_ a & show_ b
-where 
-	show2 f g t c = show2 (show1 f) (show1 g) (fromTuple t) c
-	
+instance show_ (a,b) | show_ a & show_ b where show_ t c = show_ (fromTup t) c
+
 /**************** Part 4 *******************************/
+
 :: Result a = Fail | Match a [String]
 class parse a :: [String] -> Result a
 
-class parse0 t :: [String]  -> Result t
-class parse1 t :: ([String] -> Result a) [String] -> Result (t a)        
-class parse2 t :: ([String] -> Result a) ([String] -> Result b) [String] -> Result (t a b)
-
-getArg :: (Result a) -> a
-getArg (Match a _) = a
-
 instance parse Int where
-	parse ["Int",i : r]  = Match (toInt i) r
-	parse _              = Fail
-	
+	parse ["Int",i : r]  	= Match (toInt i) r
+	parse _              	= Fail
 instance parse Bool where
-	parse ["Bool",b : r] = Match (b=="True") r
-	parse _              = Fail
-	
+	parse ["Bool",b : r] 	= Match (b=="True") r
+	parse _              	= Fail
 instance parse UNIT where
-	parse ["UNIT" : r]   = Match UNIT r
-	parse _              = Fail
+	parse ["UNIT" : r]  	= Match UNIT r
+	parse _             	= Fail
+instance parse (PAIR a b) | parse a & parse b where
+	parse ["PAIR" : p]		= case parse p of
+								Match a l 	= case parse l of
+												Match b r = Match (PAIR a b) r
+												_ = Fail
+								_ 			= Fail				
+	parse l = Fail
+instance parse (EITHER a b) | parse a & parse b  where
+	parse ["LEFT" : l] = case parse l of
+							Match a r 	= Match (LEFT a) r
+							_ 			= Fail
+	parse ["RIGHT" : l] = case parse l of
+							Match b r 	= Match (RIGHT b) r
+							_ 			= Fail
+	parse l = Fail
+instance parse (CONS a) | parse a where
+	parse ["CONS",name:l] = case parse l of
+							Match a r 	= Match (CONS name a) r
+							_			= Fail 
+	parse l = Fail
 
-instance parse2 PAIR 
-where
-	parse2 f g ["PAIR" : "(" : pair] = getPair f g pair [] [] 0
-	where
-		getPair :: ([String] -> Result a) ([String] -> Result b) [String] [String] [String] Int -> Result (PAIR a b)
-		getPair f g ["(":r] l [] i 		= getPair f g r (l++["("]) [] (i+1)
-		getPair f g ["(":r] l l2 i 		= getPair f g r l (l2++["("]) (i+1)
-		getPair f g [")":"(":r] l l2 0 	= getPair f g r (l++[")"]) (l2++["("]) 0
-		getPair f g [")":r] l l2 0 		= Match (PAIR (getArg(f l)) (getArg(g l2))) r
-		getPair f g [")":r] l [] i 		= getPair f g r (l++[")"]) [] (i-1)
-		getPair f g [")":r] l l2 i 		= getPair f g r l (l2++[")"]) (i-1)
-		getPair f g [a:r] l [] i 		= getPair f g r (l++[a]) [] i
-		getPair f g [a:r] l l2 i 		= getPair f g r l (l2++[a]) i
-		getPair _ _ [] _ _ _  			= Fail
-	
-instance parse2 EITHER
-where 
-	parse2 f g ["LEFT" : "(" : left] = getEitherLeft f left [] 0
-	parse2 f g ["RIGHT" : "(" : right] = getEitherRight g right [] 0
+toTup :: (TupG a b) -> (a,b)
+toTup (CONS "Tup" (PAIR a b))		= (a,b)
 
-getEitherLeft f ["(":r] l i 	= getEitherLeft f r (l++["("]) (i+1)
-getEitherLeft f [")":r] l 0		= Match (LEFT (getArg(f l))) r
-getEitherLeft f [")":r] l i 	= getEitherLeft f r (l++[")"]) (i-1)
-getEitherLeft f [a:r] l i		= getEitherLeft f r (l++[a]) i
-getEitherLeft _ _ _ _ 			= Fail
+instance parse (a,b) | parse a & parse b where parse tuple = case parse tuple of
+													Match t r 	= Match (toTup t) r
+													_ 			= Fail
+instance parse [a] | parse a where parse list = case parse list of
+													Match l r 	= Match (toList l) r
+													_ 			= Fail
 
-getEitherRight f ["(":r] l i 	= getEitherRight f r (l++["("]) (i+1)
-getEitherRight f [")":r] l 0	= Match (RIGHT (getArg(f l))) r
-getEitherRight f [")":r] l i 	= getEitherRight f r (l++[")"]) (i-1)
-getEitherRight f [a:r] l i		= getEitherRight f r (l++[a]) i
-getEitherRight _ _ _ _ 			= Fail
-	
-instance parse1 CONS 
-where
-	parse1 f ["CONS" : n : "(" : cons] = getCons f cons [] 0 
-	where
-		getCons f ["(":r] l i 	= getCons f r (l++["("]) (i+1)
-		getCons f [")":r] l 0	= Match (CONS n (getArg(f l))) r
-		getCons f [")":r] l i 	= getCons f r (l++[")"]) (i-1)
-		getCons f [a:r] l i		= getCons f r (l++[a]) i
-		getCons _ _ _ _ 		= Fail
+toTree :: (TreeG a) -> Tree a
+toTree (LEFT (CONS "Tip" UNIT)) 				= Tip
+toTree (RIGHT (CONS "Bin" (PAIR a (PAIR l r)))) = Bin l a r
 
-instance parse2 (a,b) | parse a & parse b
-where
-	parse2 f g t = parse2 (parse1 f) (parse1 g) t
-
-instance parse1 []
-where
-	parse1 f l = parse2 (parse1 parse0) (parse1 (parse2 f (parse1 f))) l
-
-instance parse1 Tree 
-where 
-	parse1 f t = parse2 (parse1 parse0) (parse1 (parse2 f (parse2 (parse1 f) (parse1 f)))) t
-	
-
+instance parse (Tree a) | parse a where parse tree = case parse tree of
+													Match t r 	= Match (toTree t) r
+													_ 			= Fail
 :: T = C
 
 /**************** Starts *******************************/
 
-//Start = ("add your own Start rule!\n", Start4)
+Start = ("add your own Start rule!\n", Start4)
 
 // Possible tests:
 //Start1 :: ([String],Result T)
@@ -258,10 +190,10 @@ where
 //Start3 :: ([String],Result [Int])
 //Start3 = (strings,parse strings) where strings = show l; l :: [Int]; l = [1..4]
 
-/*Start4 :: ([String],Result (Tree Int))
+Start4 :: ([String],Result (Tree Int))
 Start4 = (strings,parse strings)
 where
 	strings = show t
 	
 	t :: Tree Int
-	t = Bin (Bin Tip 2 (Bin Tip 3 Tip)) 4 (Bin (Bin Tip 5 Tip) 6 Tip)*/
+	t = Bin (Bin Tip 2 (Bin Tip 3 Tip)) 4 (Bin (Bin Tip 5 Tip) 6 Tip)
